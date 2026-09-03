@@ -1,6 +1,5 @@
 import os
 import time
-import threading
 import flet as ft
 from gtts import gTTS
 
@@ -10,12 +9,9 @@ def main(page: ft.Page):
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     page.bgcolor = "white"
 
-    # Audio Player initialization for Mobile
-    audio_player = ft.Audio(autoplay=True)
-    page.overlay.append(audio_player)
-
     # ----------------- 1. Repeater View -----------------
     t1_status = ft.Text(value="", weight=ft.FontWeight.BOLD)
+    
     output_field = ft.TextField(
         label="Generated Output (Kannada & Emoji Supported)",
         multiline=True,
@@ -29,6 +25,7 @@ def main(page: ft.Page):
         multiline=False,
         border_color="blue"
     )
+    
     input_count = ft.TextField(
         label="Enter Count (e.g., 500)",
         keyboard_type=ft.KeyboardType.NUMBER,
@@ -63,7 +60,6 @@ def main(page: ft.Page):
 
     def copy_text(e):
         if output_field.value:
-            # Native Flet Clipboard for Mobile
             page.set_clipboard(output_field.value)
             t1_status.value = "ಕ್ಲಿಪ್‌ಬೋರ್ಡ್‌ಗೆ ಕಾಪಿ ಆಗಿದೆ!"
             t1_status.color = "blue"
@@ -104,87 +100,51 @@ def main(page: ft.Page):
     )
     t2_status = ft.Text(value="", weight=ft.FontWeight.BOLD)
 
-    def preview_tts_worker(text):
+    def generate_and_save_voice(text):
         try:
-            t2_status.value = "ಪ್ರಿವ್ಯೂ ಸಿದ್ಧವಾಗುತ್ತಿದೆ..."
+            t2_status.value = "ವಾಯ್ಸ್ ಫೈಲ್ ಸಿದ್ಧವಾಗುತ್ತಿದೆ..."
             t2_status.color = "blue"
             page.update()
 
-            temp_dir = page.pwa_url if page.web else page.client_storage
-            preview_path = os.path.join(os.getcwd(), "preview_temp.mp3")
-            
-            tts = gTTS(text=text, lang='kn', slow=False)
-            tts.save(preview_path)
-
-            # Mobile compatible audio play
-            audio_player.src = preview_path
-            audio_player.update()
-            audio_player.play()
-
-            t2_status.value = "ಪ್ರಿವ್ಯೂ ಪ್ಲೇ ಆಗುತ್ತಿದೆ..."
-            t2_status.color = "green"
-            page.update()
-        except Exception as ex:
-            t2_status.value = f"ಪ್ರಿವ್ಯೂ ವಿಫಲ: {str(ex)}"
-            t2_status.color = "red"
-            page.update()
-
-    def download_tts_worker(text):
-        try:
             filename = f"umg_voice_{int(time.time())}.mp3"
+            
+            # Application folder path
             save_path = os.path.join(os.getcwd(), filename)
 
             tts = gTTS(text=text, lang='kn', slow=False)
             tts.save(save_path)
 
-            t2_status.value = f"ಡೌನ್‌ಲೋಡ್ ಯಶಸ್ವಿ! {filename} ಸೇವಿಯಾಗಿದೆ."
+            t2_status.value = f"ವಾಯ್ಸ್ ಸಿದ್ಧವಾಗಿದೆ! ಸೇವ್ ಆದ ಹೆಸರು: {filename}"
             t2_status.color = "green"
             page.update()
         except Exception as ex:
-            t2_status.value = f"ಡೌನ್‌ಲೋಡ್ ವಿಫಲ: {str(ex)}"
+            t2_status.value = f"ವಾಯ್ಸ್ ಸೃಷ್ಟಿ ವಿಫಲವಾಗಿದೆ: {str(ex)}"
             t2_status.color = "red"
             page.update()
 
-    def start_preview(e):
+    def start_voice_generation(e):
         text = tts_input.value.strip()
         if not text:
             t2_status.value = "ದಯವಿಟ್ಟು ಟೆಕ್ಸ್ಟ್ ನಮೂದಿಸಿ!"
             t2_status.color = "red"
             page.update()
             return
-        threading.Thread(target=preview_tts_worker, args=(text,)).start()
-
-    def start_download(e):
-        text = tts_input.value.strip()
-        if not text:
-            t2_status.value = "ದಯವಿಟ್ಟು ಟೆಕ್ಸ್ಟ್ ನಮೂದಿಸಿ!"
-            t2_status.color = "red"
-            page.update()
-            return
-        threading.Thread(target=download_tts_worker, args=(text,)).start()
+        generate_and_save_voice(text)
 
     tts_content = ft.Column([
         ft.Divider(height=5),
         tts_input,
-        ft.Row([
-            ft.ElevatedButton(
-                "🎧 Preview Voice", 
-                on_click=start_preview, 
-                bgcolor="purple", 
-                color="white",
-                expand=1
-            ),
-            ft.ElevatedButton(
-                "📥 Download Voice", 
-                on_click=start_download, 
-                bgcolor="orange", 
-                color="white",
-                expand=1
-            ),
-        ], alignment=ft.MainAxisAlignment.CENTER),
+        ft.ElevatedButton(
+            "🎙️ Generate Kannada Voice MP3", 
+            on_click=start_voice_generation, 
+            bgcolor="orange", 
+            color="white",
+            width=400
+        ),
         t2_status
     ], expand=True)
 
+    # ----------------- Navigation Setup -----------------
     body_container = ft.Container(content=repeater_content, expand=True, padding=10)
 
     btn_tab1 = ft.ElevatedButton("1. Repeater", bgcolor="blue", color="white")
