@@ -1,5 +1,6 @@
 import os
 import time
+import urllib.parse
 import flet as ft
 from gtts import gTTS
 
@@ -68,7 +69,6 @@ def main(page: ft.Page):
     def copy_text(e):
         if output_field.value:
             try:
-                # Safe clipboard call
                 page.set_clipboard(output_field.value)
                 t1_status.value = "✅ Text ಯಶಸ್ವಿಯಾಗಿ Copy ಆಗಿದೆ!"
                 t1_status.color = "green"
@@ -109,24 +109,36 @@ def main(page: ft.Page):
         multiline=True,
         border_color="orange",
         color="white",
-        min_lines=6,
-        max_lines=10
+        min_lines=5,
+        max_lines=8
     )
     t2_status = ft.Text(value="", weight=ft.FontWeight.BOLD, color="white")
+    
+    current_audio_file = {"path": "", "name": ""}
 
-    def generate_and_save_voice(text):
+    def generate_voice(e):
+        text = tts_input.value.strip() if tts_input.value else ""
+        if not text:
+            t2_status.value = "ದಯವಿಟ್ಟು ಟೆಕ್ಸ್ಟ್ ನಮೂದಿಸಿ!"
+            t2_status.color = "red"
+            page.update()
+            return
+        
         try:
             t2_status.value = "ವಾಯ್ಸ್ ಫೈಲ್ ಸಿದ್ಧವಾಗುತ್ತಿದೆ..."
             t2_status.color = "blue"
             page.update()
 
-            filename = f"umg_voice_{int(time.time())}.mp3"
+            filename = f"UMG_Voice_{int(time.time())}.mp3"
             save_path = os.path.join(os.getcwd(), filename)
 
             tts = gTTS(text=text, lang='kn', slow=False)
             tts.save(save_path)
 
-            t2_status.value = f"✅ ವಾಯ್ಸ್ ಸಿದ್ಧವಾಗಿದೆ! ಸೇವ್ ಆದ ಫೈಲ್: {filename}"
+            current_audio_file["path"] = save_path
+            current_audio_file["name"] = filename
+
+            t2_status.value = "✅ ವಾಯ್ಸ್ ಯಶಸ್ವಿಯಾಗಿ ಸಿದ್ಧವಾಗಿದೆ!"
             t2_status.color = "green"
             page.update()
         except Exception as ex:
@@ -134,25 +146,86 @@ def main(page: ft.Page):
             t2_status.color = "red"
             page.update()
 
-    def start_voice_generation(e):
-        text = tts_input.value.strip() if tts_input.value else ""
-        if not text:
-            t2_status.value = "ದಯವಿಟ್ಟು ಟೆಕ್ಸ್ಟ್ ನಮೂದಿಸಿ!"
-            t2_status.color = "red"
+    def play_preview(e):
+        if not current_audio_file["path"] or not os.path.exists(current_audio_file["path"]):
+            t2_status.value = "ಮೊದಲು ವಾಯ್ಸ್ ಜನರೇಟ್ ಮಾಡಿ!"
+            t2_status.color = "orange"
             page.update()
             return
-        generate_and_save_voice(text)
+
+        try:
+            file_url = "file://" + urllib.parse.quote(current_audio_file["path"])
+            page.launch_url(file_url)
+            t2_status.value = "🔊 ಆಡಿಯೋ ಪ್ಲೇ ಆಗುತ್ತಿದೆ..."
+            t2_status.color = "cyan"
+            page.update()
+        except Exception:
+            t2_status.value = "ಪ್ಲೇ ಮಾಡಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ. ಡೌನ್‌ಲೋಡ್ ಮಾಡಿ ಆಲಿಸಿ."
+            t2_status.color = "yellow"
+            page.update()
+
+    def download_voice(e):
+        if not current_audio_file["path"] or not os.path.exists(current_audio_file["path"]):
+            t2_status.value = "ಮೊದಲು ವಾಯ್ಸ್ ಜನರೇಟ್ ಮಾಡಿ!"
+            t2_status.color = "orange"
+            page.update()
+            return
+
+        try:
+            # Android Storage Download Path
+            download_folder = "/sdcard/Download/UMG_Voice"
+            if not os.path.exists(download_folder):
+                os.makedirs(download_folder, exist_ok=True)
+
+            dest_path = os.path.join(download_folder, current_audio_file["name"])
+            
+            # Copy generated file to Download directory
+            with open(current_audio_file["path"], "rb") as src, open(dest_path, "wb") as dst:
+                dst.write(src.read())
+
+            t2_status.value = f"📁 ಫೋನ್‌ನಲ್ಲಿ ಸೇವ್ ಆಗಿದೆ: Download/UMG_Voice/{current_audio_file['name']}"
+            t2_status.color = "green"
+            page.update()
+        except Exception as ex:
+            # Fallback if custom folder fails
+            try:
+                alt_dest = os.path.join("/sdcard/Download", current_audio_file["name"])
+                with open(current_audio_file["path"], "rb") as src, open(alt_dest, "wb") as dst:
+                    dst.write(src.read())
+                t2_status.value = f"📁 ಫೋನ್ ಡೌನ್‌ಲೋಡ್ಸ್‌ನಲ್ಲಿ ಸೇವ್ ಆಗಿದೆ: {current_audio_file['name']}"
+                t2_status.color = "green"
+                page.update()
+            except Exception:
+                t2_status.value = "ಸೇವ್ ಮಾಡಲು ಪರ್ಮಿಷನ್ ಕೊಡಿ ಅಥವಾ ಫೈಲ್ ಮ್ಯಾನೇಜರ್ ಪರಿಶೀಲಿಸಿ."
+                t2_status.color = "red"
+                page.update()
 
     tts_content = ft.Column([
         ft.Divider(height=10, color="transparent"),
         tts_input,
         ft.ElevatedButton(
-            "🎙️ Generate Kannada Voice MP3", 
-            on_click=start_voice_generation, 
+            "🎙️ 1. Generate Voice", 
+            on_click=generate_voice, 
             bgcolor="orange", 
             color="white",
             width=400
         ),
+        ft.Row([
+            ft.ElevatedButton(
+                "🔊 Preview", 
+                on_click=play_preview, 
+                bgcolor="blue", 
+                color="white",
+                expand=True
+            ),
+            ft.ElevatedButton(
+                "⬇️ Download File", 
+                on_click=download_voice, 
+                bgcolor="green", 
+                color="white",
+                expand=True
+            ),
+        ], spacing=10),
         t2_status
     ], expand=True, scroll=ft.ScrollMode.AUTO)
 
