@@ -13,6 +13,14 @@ def main(page: ft.Page):
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     page.padding = 15
 
+    # Audio player widget (Hidden) for preview
+    audio_player = ft.Audio(autoplay=False)
+    page.overlay.append(audio_player)
+
+    # File Picker for Download
+    file_picker = ft.FilePicker()
+    page.overlay.append(file_picker)
+
     # ----------------- 1. Repeater View -----------------
     t1_status = ft.Text(value="", weight=ft.FontWeight.BOLD, color="white")
     
@@ -141,7 +149,7 @@ def main(page: ft.Page):
             t2_status.value = "✅ ವಾಯ್ಸ್ ಯಶಸ್ವಿಯಾಗಿ ಸಿದ್ಧವಾಗಿದೆ!"
             t2_status.color = "green"
             page.update()
-        except Exception as ex:
+        except Exception:
             t2_status.value = "❌ ವಾಯ್ಸ್ ಸೃಷ್ಟಿ ವಿಫಲವಾಗಿದೆ (ಇಂಟರ್ನೆಟ್ ಪರಿಶೀಲಿಸಿ)."
             t2_status.color = "red"
             page.update()
@@ -154,8 +162,11 @@ def main(page: ft.Page):
             return
 
         try:
-            file_url = "file://" + urllib.parse.quote(current_audio_file["path"])
-            page.launch_url(file_url)
+            # Setting audio source and playing
+            audio_player.src = current_audio_file["path"]
+            page.update()
+            audio_player.play()
+            
             t2_status.value = "🔊 ಆಡಿಯೋ ಪ್ಲೇ ಆಗುತ್ತಿದೆ..."
             t2_status.color = "cyan"
             page.update()
@@ -163,6 +174,22 @@ def main(page: ft.Page):
             t2_status.value = "ಪ್ಲೇ ಮಾಡಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ. ಡೌನ್‌ಲೋಡ್ ಮಾಡಿ ಆಲಿಸಿ."
             t2_status.color = "yellow"
             page.update()
+
+    def on_save_result(e: ft.FilePickerResultEvent):
+        if e.path:
+            try:
+                # Copy file to user selected path
+                with open(current_audio_file["path"], "rb") as src, open(e.path, "wb") as dst:
+                    dst.write(src.read())
+                t2_status.value = f"📁 ಫೋನ್‌ನಲ್ಲಿ ಸೇವ್ ಆಗಿದೆ: {e.path}"
+                t2_status.color = "green"
+                page.update()
+            except Exception:
+                t2_status.value = "ಸೇವ್ ಮಾಡಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ."
+                t2_status.color = "red"
+                page.update()
+
+    file_picker.on_result = on_save_result
 
     def download_voice(e):
         if not current_audio_file["path"] or not os.path.exists(current_audio_file["path"]):
@@ -172,33 +199,27 @@ def main(page: ft.Page):
             return
 
         try:
-            # Android Storage Download Path
-            download_folder = "/sdcard/Download/UMG_Voice"
-            if not os.path.exists(download_folder):
-                os.makedirs(download_folder, exist_ok=True)
-
-            dest_path = os.path.join(download_folder, current_audio_file["name"])
-            
-            # Copy generated file to Download directory
-            with open(current_audio_file["path"], "rb") as src, open(dest_path, "wb") as dst:
-                dst.write(src.read())
-
-            t2_status.value = f"📁 ಫೋನ್‌ನಲ್ಲಿ ಸೇವ್ ಆಗಿದೆ: Download/UMG_Voice/{current_audio_file['name']}"
-            t2_status.color = "green"
-            page.update()
-        except Exception as ex:
-            # Fallback if custom folder fails
-            try:
-                alt_dest = os.path.join("/sdcard/Download", current_audio_file["name"])
-                with open(current_audio_file["path"], "rb") as src, open(alt_dest, "wb") as dst:
+            # Android high-version compatible saving or standard file saving
+            download_folder = "/sdcard/Download"
+            if os.path.exists(download_folder):
+                dest_path = os.path.join(download_folder, current_audio_file["name"])
+                with open(current_audio_file["path"], "rb") as src, open(dest_path, "wb") as dst:
                     dst.write(src.read())
-                t2_status.value = f"📁 ಫೋನ್ ಡೌನ್‌ಲೋಡ್ಸ್‌ನಲ್ಲಿ ಸೇವ್ ಆಗಿದೆ: {current_audio_file['name']}"
+                t2_status.value = f"📁 ಡೌನ್‌ಲೋಡ್ಸ್‌ನಲ್ಲಿ ಸೇವ್ ಆಗಿದೆ: {current_audio_file['name']}"
                 t2_status.color = "green"
                 page.update()
-            except Exception:
-                t2_status.value = "ಸೇವ್ ಮಾಡಲು ಪರ್ಮಿಷನ್ ಕೊಡಿ ಅಥವಾ ಫೈಲ್ ಮ್ಯಾನೇಜರ್ ಪರಿಶೀಲಿಸಿ."
-                t2_status.color = "red"
-                page.update()
+            else:
+                # Fallback to FilePicker if direct folder access is restricted
+                file_picker.save_file(
+                    file_name=current_audio_file["name"],
+                    allowed_extensions=["mp3"]
+                )
+        except Exception:
+            # Fallback to FilePicker on permission denial
+            file_picker.save_file(
+                file_name=current_audio_file["name"],
+                allowed_extensions=["mp3"]
+            )
 
     tts_content = ft.Column([
         ft.Divider(height=10, color="transparent"),
